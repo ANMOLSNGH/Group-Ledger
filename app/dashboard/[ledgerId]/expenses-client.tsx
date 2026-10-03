@@ -274,11 +274,9 @@ export function ExpensesClient({
                 >
                   <option value="" disabled>Select category...</option>
                   <option value="FOOD">Food & Dining</option>
-                  <option value="TRANSPORT">Transport</option>
+                  <option value="TRANSPORTATION">Transport</option>
                   <option value="ACCOMMODATION">Accommodation</option>
                   <option value="ENTERTAINMENT">Entertainment</option>
-                  <option value="GROCERIES">Groceries</option>
-                  <option value="UTILITIES">Utilities</option>
                   <option value="OTHER">Other</option>
                 </select>
               </div>
