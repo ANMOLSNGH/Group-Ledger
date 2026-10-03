@@ -1,0 +1,182 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../lib/db/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  // The URL is provided via prisma.config.ts in Prisma 7
+}
+
+enum LedgerType {
+  TRIP
+  HOME
+  COUPLE
+  OTHER
+}
+
+model Ledger {
+  id          String     @id @default(cuid())
+  ownerId     String
+  name        String
+  description String?
+  type        LedgerType @default(TRIP)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  members     LedgerMember[]
+  invites     LedgerInvite[]
+  expenses    Expense[]
+  auditEvents AuditEvent[]
+  settlements Settlement[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+}
+
+enum MemberRole {
+  OWNER
+  MEMBER
+}
+
+model LedgerMember {
+  id          String     @id @default(cuid())
+  ledgerId    String
+  clerkUserId String
+  role        MemberRole
+  createdAt   DateTime   @default(now())
+
+  ledger      Ledger     @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  paidExpenses Expense[]   @relation("ExpensePayer")
+  shares       ExpenseShare[] @relation("ExpenseParticipant")
+
+  @@unique([ledgerId, clerkUserId])
+  @@index([ledgerId])
+  @@index([clerkUserId])
+}
+
+model LedgerInvite {
+  id                   String    @id @default(cuid())
+  ledgerId             String
+  tokenHash            String    @unique
+  expiresAt            DateTime
+  revokedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  createdByClerkUserId String
+
+  ledger               Ledger    @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerId])
+  @@index([tokenHash])
+}
+
+enum SplitType {
+  EQUAL
+}
+
+enum ExpenseCategory {
+  ACCOMMODATION
+  TRANSPORTATION
+  FOOD
+  ENTERTAINMENT
+  OTHER
+}
+
+model Expense {
+  id                   String           @id @default(cuid())
+  ledgerId             String
+  payerMemberId        String
+  createdByClerkUserId String
+  amountMinor          Int
+  description          String
+  category             ExpenseCategory?
+  proofUrl             String?
+  splitType            SplitType        @default(EQUAL)
+  idempotencyKey       String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  ledger               Ledger           @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  payer                LedgerMember     @relation("ExpensePayer", fields: [payerMemberId], references: [id], onDelete: Cascade)
+  shares               ExpenseShare[]
+
+  @@index([ledgerId, createdAt(sort: Desc)])
+  @@unique([ledgerId, idempotencyKey])
+}
+
+model ExpenseShare {
+  id          String       @id @default(cuid())
+  expenseId   String
+  memberId    String
+  amountMinor Int
+  createdAt   DateTime     @default(now())
+
+  expense     Expense      @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member      LedgerMember @relation("ExpenseParticipant", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, memberId])
+  @@index([expenseId])
+  @@index([memberId])
+}
+
+enum AuditEventType {
+  EXPENSE_CREATED
+  EXPENSE_UPDATED
+  EXPENSE_DELETED
+  SETTLEMENT_CREATED
+  SETTLEMENT_COMPLETED
+}
+
+enum AuditEntityType {
+  EXPENSE
+  SETTLEMENT
+}
+
+model AuditEvent {
+  id               String          @id @default(cuid())
+  ledgerId         String
+  actorClerkUserId String
+  eventType        AuditEventType
+  entityType       AuditEntityType
+  entityId         String?
+  payload          Json
+  occurredAt       DateTime        @default(now())
+
+  ledger           Ledger          @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerId, occurredAt(sort: Desc), id(sort: Desc)])
+}
+
+enum SettlementStatus {
+  PROPOSED
+  COMPLETED
+}
+
+model Settlement {
+  id                       String             @id @default(cuid())
+  ledgerId                 String
+  sourceBalanceFingerprint String
+  status                   SettlementStatus   @default(PROPOSED)
+  totalTransferredMinor    Int
+  transactionCount         Int
+  createdByClerkUserId     String
+  createdAt                DateTime           @default(now())
+  completedByClerkUserId   String?
+  completedAt              DateTime?
+
+  ledger                   Ledger             @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+  transfers                SettlementTransfer[]
+
+  @@index([ledgerId, createdAt(sort: Desc)])
+}
+
+model SettlementTransfer {
+  id           String     @id @default(cuid())
+  settlementId String
+  fromMemberId String
+  toMemberId   String
+  amountMinor  Int
+
+  settlement   Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId])
+}
