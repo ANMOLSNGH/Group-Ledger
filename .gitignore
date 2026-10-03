@@ -43,3 +43,6 @@ next-env.d.ts
 # scratch files
 scratch_*
 *.scratch.*
+
+# ignore context directory
+context/
